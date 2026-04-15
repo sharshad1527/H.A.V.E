@@ -41,13 +41,17 @@ I didn't just string together a few basic Python libraries. This thing is heavil
 
 ### **Install dependencies:**
 
+```bash
 pip install PySide6 openai-whisper torch rapidfuzz opencv-python numpy Pillow requests imageio-ffmpeg moviepy
+```
 
 **Note:** Installing torch with CUDA support is highly recommended if using an Nvidia GPU. It makes Whisper transcription near-instant.
 
 ### **Run the app:**
 
-python main\_gui.py
+```bash
+python main_gui.py
+```
 
 ## **📐 Known Quirks & "Designed For"**
 
