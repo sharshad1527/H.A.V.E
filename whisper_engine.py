@@ -33,7 +33,14 @@ def _clean_text(text):
 class AudioSyncEngine:
     def __init__(self, model_size="base"):
         print(f"Loading Whisper model '{model_size}'...")
-        self.model = whisper.load_model(model_size)
+        if torch.cuda.is_available(): 
+            device = "cuda" # GPU
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            device = "mps" # Apple Silicon
+        else:
+            device = "cpu" # CPU
+
+        self.model = whisper.load_model(model_size, device=device)
         self.model_size = model_size
         self.use_fp16 = torch.cuda.is_available()
         print(f"Model loaded successfully. (fp16={'enabled' if self.use_fp16 else 'disabled - CPU mode'})")

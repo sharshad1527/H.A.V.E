@@ -1,4 +1,5 @@
 import os
+import platform
 import random
 import gc
 import subprocess
@@ -485,8 +486,14 @@ class VideoRenderer:
 
             if cap_res and os.path.exists(cap_res):
                 # FFmpeg paths on Windows filters MUST have exactly this escaping to prevent crashes
-                ass_path = cap_res.replace('\\', '/').replace(':', '\\:')
-                font_dir = os.path.dirname(get_font_path()).replace('\\', '/').replace(':', '\\:')
+                if platform.system() == "Windows":
+                    ass_path = cap_res.replace('\\', '/').replace(':', '\\:')
+                    font_dir = os.path.dirname(get_font_path()).replace('\\', '/').replace(':', '\\:')
+
+                else:
+                    ass_path = cap_res
+                    font_dir = os.path.dirname(get_font_path())
+                
                 ass_filter = f"ass='{ass_path}':fontsdir='{font_dir}'"
                 
                 self._run_ff([

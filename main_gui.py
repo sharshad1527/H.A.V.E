@@ -1,5 +1,7 @@
 import sys
 import os
+import platform
+import subprocess
 import re
 import time
 import traceback
@@ -1199,7 +1201,15 @@ class AutoEditorGUI(QMainWindow):
         self.progress_bar.setValue(100)
         self.btn_render.setEnabled(True)
         self.lbl_status.setText(f"Video Rendered! (took {int(elapsed_secs//60)}m {int(elapsed_secs%60)}s)")
-        os.startfile(os.path.dirname(output_file))
+    
+        if platform.system() == "Windows": # Windows
+            os.startfile(os.path.dirname(output_file))
+
+        elif platform.system() == "Darwin": # MacOS
+            subprocess.Popen(["open", os.path.dirname(output_file)])
+            
+        elif platform.system() == "Linux": # Linux
+            subprocess.Popen(["xdg-open", os.path.dirname(output_file)])
 
     def closeEvent(self, event):
         if self.project.is_dirty:
