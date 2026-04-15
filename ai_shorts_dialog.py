@@ -25,8 +25,8 @@ class APIWorker(QThread):
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
-                "HTTP-Referer": "https://github.com/SimplyHuman",
-                "X-Title": "Simply Human Pro Editor"
+                "HTTP-Referer": "https://github.com/sharshad1527/h.a.v.e",
+                "X-Title": "H.A.V.E. Pro Editor"
             }
             
             target_int = int(self.target_duration)

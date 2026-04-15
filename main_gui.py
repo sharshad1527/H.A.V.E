@@ -69,7 +69,7 @@ def global_exception_handler(exc_type, exc_value, exc_tb):
     print("\n" + "="*40 + "\nCRITICAL CRASH DETECTED\n" + "="*40)
     print(err_msg)
     try:
-        with open("simply_human_crash_report.txt", "w") as f:
+        with open("have_crash_report.txt", "w") as f:
             f.write(err_msg)
     except: pass
     
@@ -77,7 +77,7 @@ def global_exception_handler(exc_type, exc_value, exc_tb):
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Critical)
         msg.setWindowTitle("Application Crashed!")
-        msg.setText("The app crashed. A full diagnostic report was saved to 'simply_human_crash_report.txt'.")
+        msg.setText("The app crashed. A full diagnostic report was saved to 'have_crash_report.txt'.")
         msg.setDetailedText(err_msg)
         copy_btn = msg.addButton("📋 Copy Error to Clipboard", QMessageBox.ActionRole)
         msg.addButton(QMessageBox.Ok)
@@ -224,7 +224,7 @@ class WhisperWorker(QThread):
             time.sleep(0.1)
         except Exception as e:
             err_msg = traceback.format_exc()
-            self.error.emit(f"Critical AI Error: {str(e)}\n\nSee simply_human_crash_report.txt for details.")
+            self.error.emit(f"Critical AI Error: {str(e)}\n\nSee have_crash_report.txt for details.")
 
 class RenderWorker(QThread):
     progress = Signal(str)
@@ -251,7 +251,7 @@ class RenderWorker(QThread):
 class AutoEditorGUI(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Simply Human - Pro Editor")
+        self.setWindowTitle("H.A.V.E. - Pro Editor")
         self.setStyleSheet(RASPBERRY_PRO_STYLESHEET)
         self.resize(1200, 620)
         self.setMinimumSize(950, 550)
@@ -302,7 +302,7 @@ class AutoEditorGUI(QMainWindow):
         sidebar_layout.setContentsMargins(0, 0, 0, 0)
         sidebar_layout.setSpacing(5)
         
-        lbl_brand = QLabel("Simply Human")
+        lbl_brand = QLabel("H.A.V.E.")
         lbl_brand.setObjectName("AppTitle")
         sidebar_layout.addWidget(lbl_brand)
         
