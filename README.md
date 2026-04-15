@@ -2,7 +2,7 @@
 
 **Harshad's Automated Video Engine**  
 A script-driven video editing and rendering pipeline built entirely in Python.  
-*\[Drop your main UI screenshot here \- e.g., \!\[Main UI\](images/main\_ui.png)\]*
+![Main UI](images/main_ui.png)
 
 ## **🛑 The "Why" (Why I built this)**
 
