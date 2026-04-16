@@ -25,30 +25,26 @@
             <g filter="url(#dropShadow)">
                 
                 <!-- Audio Waveform (Left Pillar) -->
-                <rect x="152" y="150" width="12" height="140" rx="6" fill="#EAE0D5"/>
-                <rect x="170" y="100" width="12" height="240" rx="6" fill="#EAE0D5"/>
-                <rect x="188" y="130" width="12" height="180" rx="6" fill="#EAE0D5"/>
+                <rect x="152" y="150" width="16" height="140" rx="8" fill="#EAE0D5"/>
+                <rect x="176" y="100" width="16" height="240" rx="8" fill="#EAE0D5"/>
+                <rect x="200" y="130" width="16" height="180" rx="8" fill="#EAE0D5"/>
 
                 <!-- Film Strip (Right Pillar) -->
-                <rect x="316" y="100" width="44" height="240" rx="12" fill="#EAE0D5"/>
-                <!-- Film Holes (Mathematically centered) -->
-                <rect x="330" y="114" width="16" height="12" rx="4" fill="#1E1715"/>
-                <rect x="330" y="164" width="16" height="12" rx="4" fill="#1E1715"/>
-                <rect x="330" y="214" width="16" height="12" rx="4" fill="#1E1715"/>
-                <rect x="330" y="264" width="16" height="12" rx="4" fill="#1E1715"/>
-                <rect x="330" y="314" width="16" height="12" rx="4" fill="#1E1715"/>
+                <rect x="316" y="100" width="60" height="240" rx="12" fill="#EAE0D5"/>
+                <rect x="336" y="112" width="20" height="16" rx="4" fill="#1E1715"/>
+                <rect x="336" y="162" width="20" height="16" rx="4" fill="#1E1715"/>
+                <rect x="336" y="212" width="20" height="16" rx="4" fill="#1E1715"/>
+                <rect x="336" y="262" width="20" height="16" rx="4" fill="#1E1715"/>
+                <rect x="336" y="312" width="20" height="16" rx="4" fill="#1E1715"/>
 
-                <!-- Play Button (Crossbar uniting Audio and Video) -->
-                <polygon points="192,165 306,220 192,275" fill="url(#orangeGrad)" stroke="url(#orangeGrad)" stroke-width="20" stroke-linejoin="round"/>
+                <!-- Play Button (Floating Crossbar uniting Audio and Video) -->
+                <polygon points="236,175 296,220 236,265" fill="url(#orangeGrad)" stroke="url(#orangeGrad)" stroke-width="16" stroke-linejoin="round"/>
             </g>
 
             <!-- AI Sparkles -->
             <g filter="url(#glow)">
-                <!-- Primary Orange Sparkle -->
                 <path d="M 392,80 Q 392,100 412,100 Q 392,100 392,120 Q 392,100 372,100 Q 392,100 392,80 Z" fill="#FF7043"/>
-                <!-- Secondary Green Sparkle -->
                 <path d="M 422,58 Q 422,70 434,70 Q 422,70 422,82 Q 422,70 410,70 Q 422,70 422,58 Z" fill="#00E676"/>
-                <!-- Tertiary Beige Sparkle (Near Audio) -->
                 <path d="M 132,100 Q 132,110 142,110 Q 132,110 132,120 Q 132,110 122,110 Q 132,110 132,100 Z" fill="#EAE0D5" opacity="0.7"/>
             </g>
 

@@ -24,15 +24,42 @@ class VideoRenderer:
         try:
             import imageio_ffmpeg
             self.ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-        except Exception:
+        except Exception as e:
+            print(f"Warning: imageio_ffmpeg not found or failed ({e}). Falling back to 'ffmpeg' in PATH.")
             self.ffmpeg = "ffmpeg"
 
-    def _run_ff(self, args, timeout=120):
+    def _run_ff(self, args, timeout=120, cancel_event=None):
         """Run ffmpeg silently, raise on error with full crash report."""
+        if cancel_event and cancel_event.is_set():
+            raise InterruptedError("Render cancelled by user.")
+
         cmd = [self.ffmpeg] + args
-        r = subprocess.run(cmd, capture_output=True, timeout=timeout)
-        if r.returncode != 0:
-            err = r.stderr.decode("utf-8", errors="replace")
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        
+        start_time = time.time()
+        stdout_data, stderr_data = b"", b""
+        
+        while True:
+            if cancel_event and cancel_event.is_set():
+                process.terminate()
+                process.wait()
+                raise InterruptedError("Render cancelled by user.")
+            
+            try:
+                out, err = process.communicate(timeout=0.1)
+                if out: stdout_data += out
+                if err: stderr_data += err
+                break  # process finished
+            except subprocess.TimeoutExpired:
+                pass # Still running, check cancel_event and timeout again
+                
+            if timeout and (time.time() - start_time) > timeout:
+                process.kill()
+                process.wait()
+                raise TimeoutError("ffmpeg process timed out.")
+
+        if process.returncode != 0:
+            err = stderr_data.decode("utf-8", errors="replace")
             # --- COMPREHENSIVE FFMPEG CRASH REPORT ---
             print("\n" + "="*20 + " FFMPEG CRASH REPORT " + "="*20)
             print(f"COMMAND RUN:\n{' '.join(cmd)}\n")
@@ -40,7 +67,7 @@ class VideoRenderer:
             print("="*61 + "\n")
             raise RuntimeError(f"ffmpeg failed:\n{err[-600:]}")
 
-    def _make_clip(self, img, out, dur, w, h, motion, entry, zamount, first, last, is_video=False, fps=60, trim_start=0.0, trim_end=0.0, trans_dur=0.2):
+    def _make_clip(self, img, out, dur, w, h, motion, entry, zamount, first, last, is_video=False, fps=60, trim_start=0.0, trim_end=0.0, trans_dur=0.2, cancel_event=None):
         try:
             dur = float(dur)
             fps = float(fps)
@@ -58,7 +85,7 @@ class VideoRenderer:
                 "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
                 "-threads", "0",
                 "-f", "mpegts", out
-            ])
+            ], cancel_event=cancel_event)
             return
 
         input_args = []
@@ -83,7 +110,7 @@ class VideoRenderer:
                     "-c:v", "libx264", "-preset", "ultrafast",
                     "-threads", "0",
                     pp_mp4
-                ])
+                ], cancel_event=cancel_event)
                 input_args = ["-stream_loop", "-1", "-i", pp_mp4]
             else:
                 input_args = ["-ss", str(trim_start), "-i", img]
@@ -208,13 +235,13 @@ class VideoRenderer:
             cmd.extend(["-r", str(fps)])
             
         cmd.extend(["-f", "mpegts", out])
-        self._run_ff(cmd)
+        self._run_ff(cmd, cancel_event=cancel_event)
         
         if is_video and pp_mp4 and os.path.exists(pp_mp4):
             os.remove(pp_mp4)
 
     def render_project(self, timeline_data, audio_path, output_path,
-                       resolution, strict_cuts, gap_threshold, progress_callback, fps=60, vignette=True):
+                       resolution, strict_cuts, gap_threshold, progress_callback, cancel_event=None, fps=60, vignette=True):
 
         render_start_time = time.time()
 
@@ -397,9 +424,12 @@ class VideoRenderer:
                 t_dur = max(0.1, round(t_dur, 2))
                 
                 tsf = os.path.join(tmp, f"clip_{i:04d}.ts")
+                if cancel_event and cancel_event.is_set():
+                    raise InterruptedError("Render cancelled by user.")
+
                 future = clip_executor.submit(
                     self._make_clip, simg, tsf, cd, w, h, mt, ent, za,
-                    (i == 0), is_last_rendered, (m_type == "Video"), fps, t_start, t_end, t_dur
+                    (i == 0), is_last_rendered, (m_type == "Video"), fps, t_start, t_end, t_dur, cancel_event
                 )
                 clip_futures.append(future)
                 ts_files.append(tsf)
@@ -427,7 +457,7 @@ class VideoRenderer:
                 "-y", "-f", "concat", "-safe", "0",
                 "-i", concat_list,
                 "-c", "copy", vid_only
-            ], timeout=300)
+            ], timeout=300, cancel_event=cancel_event)
 
             elapsed = time.time() - render_start_time
             progress_callback(f"Building audio track... 88% (elapsed: {elapsed:.0f}s)")
@@ -442,7 +472,7 @@ class VideoRenderer:
                     "-c:a", "aac", "-b:a", "128k",
                     "-threads", "0",
                     "-vn", aud_only
-                ], timeout=300)
+                ], timeout=300, cancel_event=cancel_event)
             else:
                 filter_parts = []
                 concat_inputs = []
@@ -463,7 +493,7 @@ class VideoRenderer:
                     "-c:a", "aac", "-b:a", "128k",
                     "-threads", "0",
                     "-vn", aud_only
-                ], timeout=300)
+                ], timeout=300, cancel_event=cancel_event)
 
             cap_start = time.time()
             progress_callback("Generating Captions File...")
@@ -506,7 +536,7 @@ class VideoRenderer:
                     "-threads", "0",
                     "-c:a", "copy",
                     output_path
-                ], timeout=3600)
+                ], timeout=3600, cancel_event=cancel_event)
             else:
                 self._run_ff([
                     "-y",
@@ -517,7 +547,7 @@ class VideoRenderer:
                     "-threads", "0",
                     "-c:a", "copy",
                     output_path
-                ], timeout=3300)
+                ], timeout=3300, cancel_event=cancel_event)
 
             merge_time = time.time() - merge_start
             print(f"3. Final FFmpeg Merge: {merge_time:.1f} seconds")
@@ -530,6 +560,9 @@ class VideoRenderer:
             secs = int(total_time % 60)
             progress_callback(f"Rendering Complete! 100% — Total time: {mins}m {secs}s")
 
+        except InterruptedError as e:
+            # Re-raise so worker can handle graceful stop
+            raise e
         except Exception as e:
             # --- COMPREHENSIVE PYTHON CRASH REPORT ---
             err_msg = traceback.format_exc()

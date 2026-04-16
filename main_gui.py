@@ -7,14 +7,17 @@ import time
 import traceback
 import copy
 import random
+import logging
+from logging.handlers import RotatingFileHandler
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                QHBoxLayout, QPushButton, QLabel, QTableWidget, 
                                QTableWidgetItem, QHeaderView, QProgressBar, 
                                QFileDialog, QComboBox, QMessageBox, QMenu, QCheckBox, 
                                QDoubleSpinBox, QSizePolicy, QStackedWidget, QStyledItemDelegate, QStyle,
-                               QLineEdit, QAbstractSpinBox)
-from PySide6.QtCore import Qt, QThread, Signal, QSize, QUrl, QEvent
+                               QLineEdit, QAbstractSpinBox, QDialog)
+from PySide6.QtCore import Qt, QThread, Signal, QSize, QUrl, QEvent, QTimer
 from PySide6.QtGui import QColor, QIcon, QPixmap, QShortcut, QKeySequence
+import threading
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PySide6.QtMultimediaWidgets import QVideoWidget
 
@@ -28,6 +31,29 @@ from ai_shorts_dialog import AIShortsDialog
 
 # Import the new Word Editor Dialog
 from word_editor_dialog import WordEditorDialog
+
+# --- ROBUST ROLLING LOGGER ---
+if not os.path.exists("logs"):
+    os.makedirs("logs")
+
+logger = logging.getLogger("HAVE_Pro_Editor")
+logger.setLevel(logging.INFO)
+
+# File handler (INFO and up)
+file_handler = RotatingFileHandler(
+    "logs/have_editor.log", maxBytes=5*1024*1024, backupCount=3, encoding="utf-8"
+)
+file_handler.setLevel(logging.INFO)
+file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+file_handler.setFormatter(file_formatter)
+logger.addHandler(file_handler)
+
+# Console handler (CRITICAL only)
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setLevel(logging.CRITICAL)
+console_formatter = logging.Formatter("%(levelname)s: %(message)s")
+console_handler.setFormatter(console_formatter)
+logger.addHandler(console_handler)
 
 # --- GLOBAL MESSAGE BOX OVERRIDES ---
 original_critical = QMessageBox.critical
@@ -68,18 +94,13 @@ def global_exception_handler(exc_type, exc_value, exc_tb):
         sys.__excepthook__(exc_type, exc_value, exc_tb)
         return
     err_msg = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-    print("\n" + "="*40 + "\nCRITICAL CRASH DETECTED\n" + "="*40)
-    print(err_msg)
-    try:
-        with open("have_crash_report.txt", "w") as f:
-            f.write(err_msg)
-    except: pass
+    logger.critical(f"CRITICAL CRASH DETECTED:\n{err_msg}")
     
     if QApplication.instance():
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Critical)
         msg.setWindowTitle("Application Crashed!")
-        msg.setText("The app crashed. A full diagnostic report was saved to 'have_crash_report.txt'.")
+        msg.setText(f"The app crashed. A full diagnostic report was saved to 'logs/have_editor.log'.\n\nLog Path: {os.path.abspath('logs/have_editor.log')}")
         msg.setDetailedText(err_msg)
         copy_btn = msg.addButton("📋 Copy Error to Clipboard", QMessageBox.ActionRole)
         msg.addButton(QMessageBox.Ok)
@@ -226,29 +247,100 @@ class WhisperWorker(QThread):
             time.sleep(0.1)
         except Exception as e:
             err_msg = traceback.format_exc()
-            self.error.emit(f"Critical AI Error: {str(e)}\n\nSee have_crash_report.txt for details.")
+            self.error.emit(f"Critical AI Error: {str(e)}\n\nSee logs/have_editor.log for details.")
+
+class RenderProgressDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Rendering Video")
+        self.setFixedSize(500, 200)
+        self.setModal(True)
+        
+        layout = QVBoxLayout(self)
+        
+        self.lbl_status = QLabel("Preparing render...", self)
+        self.lbl_status.setAlignment(Qt.AlignCenter)
+        self.lbl_status.setStyleSheet("font-size: 11pt; font-weight: bold; color: #EAE0D5;")
+        layout.addWidget(self.lbl_status)
+        
+        self.progress_bar = QProgressBar(self)
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFixedHeight(25)
+        self.progress_bar.setStyleSheet("QProgressBar { text-align: center; } QProgressBar::chunk { background-color: #FF7043; }")
+        layout.addWidget(self.progress_bar)
+        
+        self.lbl_eta = QLabel("ETA: Calculating...", self)
+        self.lbl_eta.setAlignment(Qt.AlignCenter)
+        self.lbl_eta.setStyleSheet("font-size: 10pt; color: #A09088;")
+        layout.addWidget(self.lbl_eta)
+        
+        self.btn_cancel = QPushButton("Cancel Render", self)
+        self.btn_cancel.setStyleSheet("background-color: #FF4C4C; color: white; font-weight: bold; padding: 8px;")
+        layout.addWidget(self.btn_cancel)
+        
+        # Start time for ETA
+        self.start_time = None
+        self.is_cancelled = False
+        
+        self.btn_cancel.clicked.connect(self.cancel_render)
+        
+    def cancel_render(self):
+        self.is_cancelled = True
+        self.lbl_status.setText("Cancelling render... Please wait.")
+        self.btn_cancel.setEnabled(False)
 
 class RenderWorker(QThread):
-    progress = Signal(str)
+    progress = Signal(str, int, float) # msg, percentage, elapsed_time
     render_done = Signal(float)
     error = Signal(str)
+    cancelled = Signal()
 
     def __init__(self, timeline_data, audio_path, output_path, resolution, strict_cuts, gap_threshold, fps=60, vignette=True):
         super().__init__()
         self.timeline_data = timeline_data; self.audio_path = audio_path; self.output_path = output_path
         self.resolution = resolution; self.strict_cuts = strict_cuts; self.gap_threshold = gap_threshold
         self.fps = fps; self.vignette = vignette
+        self.cancel_event = threading.Event()
+        self.start_time = None
+
+    def _progress_callback(self, msg):
+        if self.start_time is None:
+            self.start_time = time.time()
+        elapsed = time.time() - self.start_time
+        
+        match = re.search(r'(\d+)%', msg)
+        pct = int(match.group(1)) if match else 0
+        
+        self.progress.emit(msg, pct, elapsed)
 
     def run(self):
         try:
             renderer = VideoRenderer()
             total_time = renderer.render_project(
                 self.timeline_data, self.audio_path, self.output_path, 
-                self.resolution, self.strict_cuts, self.gap_threshold, lambda msg: self.progress.emit(msg),
-                fps=self.fps, vignette=self.vignette
+                self.resolution, self.strict_cuts, self.gap_threshold, self._progress_callback,
+                cancel_event=self.cancel_event, fps=self.fps, vignette=self.vignette
             )
-            self.render_done.emit(total_time if total_time else 0.0)
-        except Exception as e: self.error.emit(str(e))
+            if not self.cancel_event.is_set():
+                self.render_done.emit(total_time if total_time else 0.0)
+            else:
+                self._cleanup_on_cancel()
+                self.cancelled.emit()
+        except InterruptedError:
+            self._cleanup_on_cancel()
+            self.cancelled.emit()
+        except Exception as e: 
+            self.error.emit(str(e))
+            
+    def _cleanup_on_cancel(self):
+        # The temp folder is usually cleaned up by VideoRenderer's finally block
+        # But if the final file is partially written, we should clean it up
+        if os.path.exists(self.output_path):
+            try:
+                os.remove(self.output_path)
+            except:
+                pass
 
 class AutoEditorGUI(QMainWindow):
     def __init__(self):
@@ -357,6 +449,7 @@ class AutoEditorGUI(QMainWindow):
         settings_layout = QHBoxLayout()
         self.lbl_status = QLabel("Ready")
         self.lbl_status.setStyleSheet("color: #FF7043; font-weight: bold;")
+        self.lbl_status.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         
         self.combo_aspect_ratio = QComboBox()
         self.combo_aspect_ratio.addItems(["16:9 (Horizontal)", "9:16 (Vertical)"])
@@ -371,8 +464,8 @@ class AutoEditorGUI(QMainWindow):
         self.spin_gap.setRange(0.1, 5.0); self.spin_gap.setSingleStep(0.1); self.spin_gap.setValue(0.6)
         self.cb_vignette = QCheckBox("Vignette")
         
-        settings_layout.addWidget(self.lbl_status)
-        settings_layout.addStretch()
+        settings_layout.addWidget(self.lbl_status, stretch=1)
+        settings_layout.addStretch(0)
         settings_layout.addWidget(QLabel("Aspect:"))
         settings_layout.addWidget(self.combo_aspect_ratio)
         settings_layout.addWidget(QLabel("FPS:"))
@@ -879,6 +972,7 @@ class AutoEditorGUI(QMainWindow):
     def load_audio(self):
         file_name, _ = QFileDialog.getOpenFileName(self, "Select Audio", "", "Audio (*.mp3 *.wav *.m4a)")
         if file_name:
+            logger.info(f"Loading audio from: {file_name}")
             self.project.audio_path = file_name
             self.project.is_dirty = True
             self.sync_ui_to_model()
@@ -890,6 +984,7 @@ class AutoEditorGUI(QMainWindow):
         file_name, _ = QFileDialog.getOpenFileName(self, "Open Project/CSV", "", "CSV Files (*.csv)")
         if file_name:
             try:
+                logger.info(f"Loading CSV from: {file_name}")
                 existing_audio = self.project.audio_path
                 new_project = ProjectState()
                 is_full = new_project.load_from_csv(file_name)
@@ -906,7 +1001,9 @@ class AutoEditorGUI(QMainWindow):
                 self.btn_return_main.hide()
                 self.sync_ui_to_model()
                 self.lbl_status.setText(f"Loaded {len(self.project.clips)} lines.")
-            except Exception as e: QMessageBox.critical(self, "Error", f"Failed to load CSV: {e}")
+            except Exception as e: 
+                logger.warning(f"Failed to load CSV: {e}")
+                QMessageBox.critical(self, "Error", f"Failed to load CSV: {e}")
 
     def save_project(self):
         if len(self.project.clips) == 0 and not self.project.audio_path: return
@@ -1099,6 +1196,8 @@ class AutoEditorGUI(QMainWindow):
 
     def run_whisper_sync(self):
         if not self.project.audio_path or not self.project.clips: return
+        
+        logger.info(f"Starting Whisper Sync (model={self.project.whisper_model})")
         current_script_data = [{"image": c.media_path, "text": c.script_text} for c in self.project.clips]
         model_size = "tiny" if "Tiny" in self.project.whisper_model else "small" if "Small" in self.project.whisper_model else "base"
         self.btn_process_whisper.setEnabled(False)
@@ -1107,10 +1206,16 @@ class AutoEditorGUI(QMainWindow):
         self.worker = WhisperWorker(self.project.audio_path, current_script_data, model_size=model_size)
         self.worker.progress.connect(lambda msg: self.lbl_status.setText(msg))
         self.worker.whisper_done.connect(self.on_sync_finished)
-        self.worker.error.connect(lambda err: QMessageBox.critical(self, "Sync Error", str(err)))
+        
+        def handle_whisper_error(err):
+            logger.warning(f"Whisper Sync Error: {err}")
+            QMessageBox.critical(self, "Sync Error", str(err))
+            
+        self.worker.error.connect(handle_whisper_error)
         self.worker.start()
 
     def on_sync_finished(self, timeline, elapsed_secs):
+        logger.info(f"Whisper Sync Finished successfully. Took {elapsed_secs:.2f}s")
         try:
             for i, item in enumerate(timeline):
                 if i < len(self.project.clips):
@@ -1151,6 +1256,8 @@ class AutoEditorGUI(QMainWindow):
         is_synced = any(c.is_synced for c in self.project.clips)
         if not self.project.clips or not is_synced: return
         
+        logger.info("Starting Video Render process...")
+        
         default_name = "final_short.mp4" if self.main_project_state else "final_video.mp4"
         output_file, _ = QFileDialog.getSaveFileName(self, "Save Video As", default_name, "MP4 Video (*.mp4)")
         if not output_file: return 
@@ -1181,24 +1288,44 @@ class AutoEditorGUI(QMainWindow):
             safe_last_end = et
 
         self.btn_render.setEnabled(False)
-        self.progress_bar.setRange(0, 100); self.progress_bar.setValue(0)
+        
+        # Instantiate Render Progress Dialog
+        self.render_dialog = RenderProgressDialog(self)
+        
         self.render_worker = RenderWorker(
             render_data, self.project.audio_path, output_file, 
             self.project.aspect_ratio, self.project.strict_cuts, self.project.gap_threshold, 
             30 if "30" in self.project.fps else 60, self.project.vignette
         )
+        
+        # Connect signals
         self.render_worker.progress.connect(self.handle_render_progress)
         self.render_worker.render_done.connect(lambda elapsed: self.on_render_finished(elapsed, output_file))
-        self.render_worker.error.connect(lambda err: QMessageBox.critical(self, "Error", str(err)))
+        self.render_worker.error.connect(self.on_render_error)
+        self.render_worker.cancelled.connect(self.on_render_cancelled)
+        
+        # Connect Cancel button in dialog
+        self.render_dialog.btn_cancel.clicked.connect(self.render_worker.cancel_event.set)
+        
         self.render_worker.start()
+        self.render_dialog.exec() # Block main UI
 
-    def handle_render_progress(self, msg):
-        self.lbl_status.setText(msg)
-        match = re.search(r'(\d+)%', msg)
-        if match: self.progress_bar.setValue(int(match.group(1)))
+    def handle_render_progress(self, msg, pct, elapsed):
+        self.render_dialog.lbl_status.setText(msg)
+        self.render_dialog.progress_bar.setValue(pct)
+        
+        if pct > 0 and pct < 100:
+            total_estimated = elapsed / (pct / 100.0)
+            remaining = total_estimated - elapsed
+            mins = int(remaining // 60)
+            secs = int(remaining % 60)
+            self.render_dialog.lbl_eta.setText(f"ETA: {mins}m {secs}s")
+        elif pct == 100:
+            self.render_dialog.lbl_eta.setText("Finalizing...")
 
     def on_render_finished(self, elapsed_secs, output_file):
-        self.progress_bar.setValue(100)
+        logger.info(f"Video Render Finished successfully! Saved to {output_file}. Took {elapsed_secs:.2f}s")
+        self.render_dialog.accept()
         self.btn_render.setEnabled(True)
         self.lbl_status.setText(f"Video Rendered! (took {int(elapsed_secs//60)}m {int(elapsed_secs%60)}s)")
     
@@ -1210,6 +1337,19 @@ class AutoEditorGUI(QMainWindow):
             
         elif platform.system() == "Linux": # Linux
             subprocess.Popen(["xdg-open", os.path.dirname(output_file)])
+            
+    def on_render_error(self, err):
+        logger.warning(f"Video Render Error: {err}")
+        self.render_dialog.reject()
+        self.btn_render.setEnabled(True)
+        self.lbl_status.setText("Render Error!")
+        QMessageBox.critical(self, "Error", str(err))
+        
+    def on_render_cancelled(self):
+        logger.info("Video Render was cancelled by the user.")
+        self.render_dialog.reject()
+        self.btn_render.setEnabled(True)
+        self.lbl_status.setText("Render Cancelled.")
 
     def closeEvent(self, event):
         if self.project.is_dirty:
@@ -1225,7 +1365,35 @@ class AutoEditorGUI(QMainWindow):
         event.accept()
 
 if __name__ == "__main__":
+    import sys
+    import os
+    import platform
+
+    # --- Windows Taskbar Icon Fix ---
+    if platform.system() == "Windows":
+        try:
+            import ctypes
+            myappid = 'harshad.have.editor' # Arbitrary string
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+        except Exception as e:
+            pass # Fail silently if ctypes isn't available
+
     app = QApplication(sys.argv)
+    
+    # --- Global Application Identity ---
+    app.setApplicationName("HAVE Pro Editor") 
+    app.setDesktopFileName("HAVE Pro Editor")
+    
+    # Load Icon (Try SVG first, fallback to ICO if it exists)
+    icon_path_svg = os.path.join(os.path.dirname(__file__), "icons", "HAVE_Pro_Logo.svg")
+    icon_path_ico = os.path.join(os.path.dirname(__file__), "icons", "HAVE_Pro_Logo.ico")
+    
+    from PySide6.QtGui import QIcon
+    if os.path.exists(icon_path_svg):
+        app.setWindowIcon(QIcon(icon_path_svg))
+    elif os.path.exists(icon_path_ico):
+        app.setWindowIcon(QIcon(icon_path_ico))
+
     window = AutoEditorGUI()
     window.show()
     sys.exit(app.exec())
