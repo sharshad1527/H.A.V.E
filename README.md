@@ -20,7 +20,7 @@ I didn't just string together a few basic Python libraries. This thing is heavil
 
 ## **✨ The "Pro" Features**
 
-*\[Drop a GIF/Image of the Inspector Panel or Word Editor here\]*
+![Word Editor](images/word_editor.png)
 
 * **Granular Word-Boundary Editor:** AI transcription isn't always perfect. I built a custom dialog (word\_editor\_dialog.py) that lets you literally pull and push specific words between clips to fix timing boundaries without touching a traditional timeline.  
 * **AI Viral Shorts Generator:** Hooked up to the OpenRouter API (supports LLaMA, Gemini, Mistral). It analyzes your full transcript and automatically finds high-retention 30-60 second segments to spin off as TikToks/Reels.  
