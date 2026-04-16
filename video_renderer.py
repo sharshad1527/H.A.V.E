@@ -7,6 +7,7 @@ import tempfile
 import shutil
 import time
 import traceback
+import re
 from concurrent.futures import ThreadPoolExecutor
 from captions_engine import create_ass_file, get_font_path
 
@@ -27,6 +28,22 @@ class VideoRenderer:
         except Exception as e:
             print(f"Warning: imageio_ffmpeg not found or failed ({e}). Falling back to 'ffmpeg' in PATH.")
             self.ffmpeg = "ffmpeg"
+
+    def _get_media_duration(self, file_path):
+        """Instantly fetch media duration using native ffmpeg without loading the file."""
+        cmd = [self.ffmpeg, "-hide_banner", "-i", file_path]
+        # ffmpeg prints metadata to stderr when no output file is specified
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        _, err = process.communicate()
+        
+        # Match pattern like "Duration: 00:00:05.23"
+        match = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.?\d*)", err)
+        if match:
+            hours, minutes, seconds = match.groups()
+            return (float(hours) * 3600) + (float(minutes) * 60) + float(seconds)
+        
+        print(f"Warning: Could not read duration for {file_path}")
+        return 0.0
 
     def _run_ff(self, args, timeout=120, cancel_event=None):
         """Run ffmpeg silently, raise on error with full crash report."""
@@ -93,10 +110,9 @@ class VideoRenderer:
         is_vertical = (h > w)
         
         if is_video:
-            from moviepy.editor import VideoFileClip
-            v_clip = VideoFileClip(img)
-            v_dur = v_clip.duration
-            v_clip.close(); del v_clip; gc.collect()
+            # Native fast duration fetch instead of MoviePy
+            v_dur = self._get_media_duration(img)
+            
             if trim_end <= 0 or trim_end > v_dur:
                 trim_end = v_dur
             actual_v_dur = trim_end - trim_start
@@ -281,10 +297,8 @@ class VideoRenderer:
                 
             last_end = et
 
-        from moviepy.editor import AudioFileClip
-        _a = AudioFileClip(audio_path)
-        audio_dur = _a.duration
-        _a.close(); del _a; gc.collect()
+        # Native fast duration fetch instead of MoviePy
+        audio_dur = self._get_media_duration(audio_path)
 
         tmp = tempfile.mkdtemp(prefix="veditor_")
         try:

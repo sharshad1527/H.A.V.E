@@ -2,7 +2,6 @@ PySide6
 imageio-ffmpeg
 torch
 openai-whisper
-moviepy
 Pillow
 rapidfuzz
 opencv-python
