@@ -7,10 +7,10 @@ import cv2
 import numpy as np
 import re
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from utils.paths import get_asset_path
 
 def get_font_path():
-    cwd = os.path.dirname(os.path.abspath(__file__))
-    font_dir = os.path.join(cwd, "font")
+    font_dir = get_asset_path("fonts")
     if os.path.exists(font_dir):
         for root, _, files in os.walk(font_dir):
             for file in files:

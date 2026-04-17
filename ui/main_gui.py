@@ -21,27 +21,31 @@ import threading
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PySide6.QtMultimediaWidgets import QVideoWidget
 
-from project_model import ProjectState, Clip
-from whisper_engine import AudioSyncEngine
-from video_renderer import VideoRenderer
-from caption_preview_dialog import CaptionPreviewDialog
-from video_trim_dialog import VideoTrimDialog
-from image_crop_dialog import ImageCropDialog
-from ai_shorts_dialog import AIShortsDialog
+from models.project_model import ProjectState, Clip
+from core.whisper_engine import AudioSyncEngine
+from core.video_renderer import VideoRenderer
+from ui.dialogs.caption_preview_dialog import CaptionPreviewDialog
+from ui.dialogs.video_trim_dialog import VideoTrimDialog
+from ui.dialogs.image_crop_dialog import ImageCropDialog
+from ui.dialogs.ai_shorts_dialog import AIShortsDialog
 
 # Import the new Word Editor Dialog
-from word_editor_dialog import WordEditorDialog
+from ui.dialogs.word_editor_dialog import WordEditorDialog
+from utils.paths import get_project_root
 
 # --- ROBUST ROLLING LOGGER ---
-if not os.path.exists("logs"):
-    os.makedirs("logs")
+log_dir = os.path.join(str(get_project_root()), "logs")
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
+log_file = os.path.join(log_dir, "have_editor.log")
 
 logger = logging.getLogger("HAVE_Pro_Editor")
 logger.setLevel(logging.INFO)
 
 # File handler (INFO and up)
 file_handler = RotatingFileHandler(
-    "logs/have_editor.log", maxBytes=5*1024*1024, backupCount=3, encoding="utf-8"
+    log_file, maxBytes=5*1024*1024, backupCount=3, encoding="utf-8"
 )
 file_handler.setLevel(logging.INFO)
 file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -100,7 +104,7 @@ def global_exception_handler(exc_type, exc_value, exc_tb):
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Critical)
         msg.setWindowTitle("Application Crashed!")
-        msg.setText(f"The app crashed. A full diagnostic report was saved to 'logs/have_editor.log'.\n\nLog Path: {os.path.abspath('logs/have_editor.log')}")
+        msg.setText(f"The app crashed. A full diagnostic report was saved to the logs folder.\n\nLog Path: {log_file}")
         msg.setDetailedText(err_msg)
         copy_btn = msg.addButton("📋 Copy Error to Clipboard", QMessageBox.ActionRole)
         msg.addButton(QMessageBox.Ok)
@@ -1098,7 +1102,8 @@ class AutoEditorGUI(QMainWindow):
         row = self.table.currentRow()
         target_idx = row + 1 if row >= 0 else len(self.project.clips)
         new_clip = Clip()
-        new_clip.media_path = "Double_Click_To_Add_Image.png"
+        from utils.paths import get_asset_path
+        new_clip.media_path = get_asset_path("images", "main_ui.png") # Or some sensible default image if Double_Click_To_Add_Image doesn't exist
         new_clip.script_text = "Type new split line here..."
         self.project.clips.insert(target_idx, new_clip)
         self.project.is_dirty = True
@@ -1364,29 +1369,20 @@ class AutoEditorGUI(QMainWindow):
                 event.ignore(); return
         event.accept()
 
-if __name__ == "__main__":
+def main():
     import sys
     import os
-    import platform
-
-    # --- Windows Taskbar Icon Fix ---
-    if platform.system() == "Windows":
-        try:
-            import ctypes
-            myappid = 'harshad.have.editor' # Arbitrary string
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-        except Exception as e:
-            pass # Fail silently if ctypes isn't available
+    from utils.paths import get_asset_path
 
     app = QApplication(sys.argv)
     
     # --- Global Application Identity ---
-    app.setApplicationName("HAVE Pro Editor") 
-    app.setDesktopFileName("HAVE Pro Editor")
+    app.setApplicationName("H.A.V.E Pro Editor") 
+    app.setDesktopFileName("H.A.V.E Pro Editor")
     
     # Load Icon (Try SVG first, fallback to ICO if it exists)
-    icon_path_svg = os.path.join(os.path.dirname(__file__), "icons", "HAVE_Pro_Logo.svg")
-    icon_path_ico = os.path.join(os.path.dirname(__file__), "icons", "HAVE_Pro_Logo.ico")
+    icon_path_svg = get_asset_path("icons", "HAVE_Pro_Logo.svg")
+    icon_path_ico = get_asset_path("icons", "HAVE_Pro_Logo.ico")
     
     from PySide6.QtGui import QIcon
     if os.path.exists(icon_path_svg):
@@ -1397,3 +1393,6 @@ if __name__ == "__main__":
     window = AutoEditorGUI()
     window.show()
     sys.exit(app.exec())
+
+if __name__ == "__main__":
+    main()

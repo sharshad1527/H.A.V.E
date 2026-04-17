@@ -9,7 +9,7 @@ import time
 import traceback
 import re
 from concurrent.futures import ThreadPoolExecutor
-from captions_engine import create_ass_file, get_font_path
+from core.captions_engine import create_ass_file, get_font_path
 
 
 class VideoRenderer:

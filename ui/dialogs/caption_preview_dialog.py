@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QImage, QPixmap
 
-from captions_engine import render_caption_frame, group_words
+from core.captions_engine import render_caption_frame, group_words
 
 class PreviewLabel(QLabel):
     dragged = Signal(float, float)

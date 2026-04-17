@@ -1,0 +1,62 @@
+<svg id="have-logo" width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <radialGradient id="bgGrad" cx="50%" cy="50%" r="75%">
+                    <stop offset="0%" stop-color="#362A26"/>
+                    <stop offset="100%" stop-color="#1E1715"/>
+                </radialGradient>
+                <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#FF8A65"/>
+                    <stop offset="100%" stop-color="#FF7043"/>
+                </linearGradient>
+                <filter id="dropShadow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#000000" flood-opacity="0.4"/>
+                </filter>
+                <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="6" result="blur"/>
+                    <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+                </filter>
+            </defs>
+
+            <!-- Base App Icon Background -->
+            <rect width="512" height="512" rx="115" fill="url(#bgGrad)"/>
+            <rect x="12" y="12" width="488" height="488" rx="103" fill="none" stroke="#4A3A35" stroke-width="4" opacity="0.6"/>
+
+            <!-- Scaled & Centered Master Group -->
+            <g transform="translate(256, 256) scale(1.45) translate(-264, -220)">
+                <!-- Main 'H' Structure -->
+                <g filter="url(#dropShadow)">
+                    
+                    <!-- Audio Waveform (Left Pillar) -->
+                    <rect x="152" y="150" width="16" height="140" rx="8" fill="#EAE0D5"/>
+                    <rect x="176" y="100" width="16" height="240" rx="8" fill="#EAE0D5"/>
+                    <rect x="200" y="130" width="16" height="180" rx="8" fill="#EAE0D5"/>
+
+                    <!-- Film Strip (Right Pillar) -->
+                    <rect x="316" y="100" width="60" height="240" rx="12" fill="#EAE0D5"/>
+                    <rect x="336" y="112" width="20" height="16" rx="4" fill="#1E1715"/>
+                    <rect x="336" y="162" width="20" height="16" rx="4" fill="#1E1715"/>
+                    <rect x="336" y="212" width="20" height="16" rx="4" fill="#1E1715"/>
+                    <rect x="336" y="262" width="20" height="16" rx="4" fill="#1E1715"/>
+                    <rect x="336" y="312" width="20" height="16" rx="4" fill="#1E1715"/>
+
+                    <!-- Play Button (Floating Crossbar uniting Audio and Video) -->
+                    <polygon points="236,175 296,220 236,265" fill="url(#orangeGrad)" stroke="url(#orangeGrad)" stroke-width="16" stroke-linejoin="round"/>
+                </g>
+
+                <!-- AI Sparkles -->
+                <g filter="url(#glow)">
+                    <!-- Primary Orange Sparkle (Top Right) -->
+                    <path d="M 390,90 Q 390,110 410,110 Q 390,110 390,130 Q 390,110 370,110 Q 390,110 390,90 Z" fill="#FF7043"/>
+                    <!-- Green Sparkle (Top Right, pulled inward) -->
+                    <path d="M 365,65 Q 365,75 375,75 Q 365,75 365,85 Q 365,75 355,75 Q 365,75 365,65 Z" fill="#00E676"/>
+                    <!-- Small Beige Sparkle (Pulled inward to prevent clipping corner) -->
+                    <path d="M 380,53 Q 380,60 387,60 Q 380,60 380,67 Q 380,60 373,60 Q 380,60 380,53 Z" fill="#EAE0D5" opacity="0.9"/>
+                    <!-- Medium Orange Sparkle (Bottom Left) -->
+                    <path d="M 140,285 Q 140,295 150,295 Q 140,295 140,305 Q 140,295 130,295 Q 140,295 140,285 Z" fill="#FF7043" opacity="0.8"/>
+                    <!-- Small Green Sparkle (Top Left) -->
+                    <path d="M 135,90 Q 135,98 143,98 Q 135,98 135,106 Q 135,98 127,98 Q 135,98 135,90 Z" fill="#00E676" opacity="0.8"/>
+                    <!-- Tiny Beige Sparkle (Near Middle Right) -->
+                    <path d="M 395,245 Q 395,250 400,250 Q 395,250 395,255 Q 395,250 390,250 Q 395,250 395,245 Z" fill="#EAE0D5" opacity="0.6"/>
+                </g>
+            </g>
+        </svg>

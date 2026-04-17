@@ -32,12 +32,12 @@ DESKTOP_FILE="have_pro_editor.desktop"
 # Attempt to convert svg to png for the desktop icon
 # Although many linux environments support svg directly in .desktop files,
 # providing a fallback PNG if conversion is possible can be helpful.
-ICON_PATH="${APP_DIR}/icons/HAVE_Pro_Logo.svg"
+ICON_PATH="${APP_DIR}/assets/icons/HAVE_Pro_Logo.svg"
 if [ -f "$ICON_PATH" ]; then
     # We can try to use PySide6 to convert if we want, but .desktop natively supports svg
     echo "Icon found."
 else
-    echo "[WARNING] icons/HAVE_Pro_Logo.svg not found."
+    echo "[WARNING] assets/icons/HAVE_Pro_Logo.svg not found."
     ICON_PATH=""
 fi
 
@@ -48,7 +48,7 @@ Type=Application
 Name=HAVE Pro Editor
 Comment=H.A.V.E. Pro Editor
 StartupWMClass=HAVE Pro Editor
-Exec=${VENV_PYTHON} ${APP_DIR}/main_gui.py
+Exec=${VENV_PYTHON} ${APP_DIR}/main.py
 Icon=${ICON_PATH}
 Path=${APP_DIR}
 Terminal=false

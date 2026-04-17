@@ -2,7 +2,7 @@
 
 **Harshad's Automated Video Engine**  
 A script-driven video editing and rendering pipeline built entirely in Python.  
-![Main UI](images/main_ui.png)
+![Main UI](assets/images/main_ui.png)
 
 ## **🛑 The "Why" (Why I built this)**
 
@@ -20,7 +20,7 @@ I didn't just string together a few basic Python libraries. This thing is heavil
 
 ## **✨ The "Pro" Features**
 
-![Word Editor](images/word_editor.png)
+![Word Editor](assets/images/word_editor.png)
 
 * **Granular Word-Boundary Editor:** AI transcription isn't always perfect. I built a custom dialog (word\_editor\_dialog.py) that lets you literally pull and push specific words between clips to fix timing boundaries without touching a traditional timeline.  
 * **AI Viral Shorts Generator:** Hooked up to the OpenRouter API (supports LLaMA, Gemini, Mistral). It analyzes your full transcript and automatically finds high-retention 30-60 second segments to spin off as YT-Shorts/Instagram-Reels.  
@@ -39,18 +39,23 @@ I didn't just string together a few basic Python libraries. This thing is heavil
 * Python 3.9+ is required.  
 * FFmpeg is strictly required. It must be installed on your system and accessible in your system's PATH.
 
-### **Install dependencies:**
+### **Installation**
 
-```bash
-pip install PySide6 openai-whisper torch rapidfuzz opencv-python numpy Pillow requests imageio-ffmpeg moviepy
-```
+Use the provided installation scripts depending on your operating system. They will automatically set up a virtual environment and install the required dependencies (including PySide6, Whisper, Torch, etc.).
+
+**Windows:**
+Run `install_windows.bat`
+
+**Linux:**
+Run `./install_linux.sh`
 
 **Note:** Installing torch with CUDA support is highly recommended if using an Nvidia GPU. It makes Whisper transcription near-instant.
 
 ### **Run the app:**
 
+You can launch the app via the desktop shortcut created by the installer, or manually by running:
 ```bash
-python main_gui.py
+python main.py
 ```
 
 ## **📐 Known Quirks & "Designed For"**
