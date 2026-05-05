@@ -18,6 +18,7 @@ class Clip:
         self.caption_y = None  # None allows dynamic default assignment based on Aspect Ratio
         self.caption_scale = 1.0
         self.caption_rot = 0.0
+        self.show_caption = True
         
         # Whisper sync metadata
         self.words = []
@@ -42,6 +43,7 @@ class ProjectState:
         self.strict_cuts = True
         self.gap_threshold = 0.6
         self.vignette = True
+        self.disable_all_captions = False
         self.clips = []
         self.is_dirty = False
 
@@ -64,6 +66,7 @@ class ProjectState:
                     if len(row) > 6:
                         try: self.gap_threshold = float(row[6])
                         except ValueError: pass
+                    if len(row) > 7: self.disable_all_captions = (row[7].lower() == 'true')
                     continue
 
                 if len(row) >= 2:
@@ -113,6 +116,8 @@ class ProjectState:
 
                     try: clip.caption_rot = float(row[12]) if len(row) > 12 and row[12] else 0.0
                     except ValueError: clip.caption_rot = 0.0
+
+                    if len(row) > 13: clip.show_caption = (row[13].lower() == 'true')
                     
                     self.clips.append(clip)
                     
@@ -127,7 +132,8 @@ class ProjectState:
             metadata = [
                 "*PROJECT_META*", str(self.audio_path) if self.audio_path else "",
                 self.aspect_ratio, str(self.strict_cuts),
-                self.fps, self.whisper_model, str(self.gap_threshold)
+                self.fps, self.whisper_model, str(self.gap_threshold),
+                str(self.disable_all_captions)
             ]
             writer.writerow(metadata)
 
@@ -140,6 +146,7 @@ class ProjectState:
                     st_str, et_str, clip.animation, clip.transition,
                     clip.trim_start, clip.trim_end, clip.caption_x,
                     clip.caption_y if clip.caption_y is not None else "",
-                    clip.caption_scale, clip.caption_rot
+                    clip.caption_scale, clip.caption_rot,
+                    str(clip.show_caption)
                 ])
         self.is_dirty = False

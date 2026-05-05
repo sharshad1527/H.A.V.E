@@ -257,7 +257,7 @@ class VideoRenderer:
             os.remove(pp_mp4)
 
     def render_project(self, timeline_data, audio_path, output_path,
-                       resolution, strict_cuts, gap_threshold, progress_callback, cancel_event=None, fps=60, vignette=True):
+                       resolution, strict_cuts, gap_threshold, progress_callback, cancel_event=None, fps=60, vignette=True, disable_all_captions=False):
 
         render_start_time = time.time()
 
@@ -514,7 +514,7 @@ class VideoRenderer:
             
             # --- NEW ASS CAPTIONS ENGINE CALL ---
             captions_ass = os.path.join(tmp, "captions.ass")
-            cap_res = create_ass_file(mapped_timeline, w, h, captions_ass)
+            cap_res = create_ass_file(mapped_timeline, w, h, captions_ass, disable_all_captions=disable_all_captions)
             
             cap_time = time.time() - cap_start
             print(f"2. Captions Engine:  {cap_time:.1f} seconds")

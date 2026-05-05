@@ -189,14 +189,20 @@ def render_caption_frame(width, height, current_time, lines,
     return img, history
 
 
-def create_ass_file(timeline_data, width, height, output_path):
+def create_ass_file(timeline_data, width, height, output_path, disable_all_captions=False):
     """
     NEW PIPELINE: Parses the timeline and writes a highly optimized .ass subtitle file. 
     This bypasses Python frame-drawing completely, allowing FFmpeg to burn text instantly.
     """
+    if disable_all_captions:
+        return None
+
     all_lines = []
     
     for item in timeline_data:
+        if not item.get("show_caption", True):
+            continue
+
         words = item.get("words", [])
         if not words or len(words) == 0:
             txt = item.get("script_line", "")

@@ -300,11 +300,11 @@ class RenderWorker(QThread):
     error = Signal(str)
     cancelled = Signal()
 
-    def __init__(self, timeline_data, audio_path, output_path, resolution, strict_cuts, gap_threshold, fps=60, vignette=True):
+    def __init__(self, timeline_data, audio_path, output_path, resolution, strict_cuts, gap_threshold, fps=60, vignette=True, disable_all_captions=False):
         super().__init__()
         self.timeline_data = timeline_data; self.audio_path = audio_path; self.output_path = output_path
         self.resolution = resolution; self.strict_cuts = strict_cuts; self.gap_threshold = gap_threshold
-        self.fps = fps; self.vignette = vignette
+        self.fps = fps; self.vignette = vignette; self.disable_all_captions = disable_all_captions
         self.cancel_event = threading.Event()
         self.start_time = None
 
@@ -324,7 +324,8 @@ class RenderWorker(QThread):
             total_time = renderer.render_project(
                 self.timeline_data, self.audio_path, self.output_path, 
                 self.resolution, self.strict_cuts, self.gap_threshold, self._progress_callback,
-                cancel_event=self.cancel_event, fps=self.fps, vignette=self.vignette
+                cancel_event=self.cancel_event, fps=self.fps, vignette=self.vignette,
+                disable_all_captions=self.disable_all_captions
             )
             if not self.cancel_event.is_set():
                 self.render_done.emit(total_time if total_time else 0.0)
@@ -467,6 +468,7 @@ class AutoEditorGUI(QMainWindow):
         self.spin_gap = QDoubleSpinBox()
         self.spin_gap.setRange(0.1, 5.0); self.spin_gap.setSingleStep(0.1); self.spin_gap.setValue(0.6)
         self.cb_vignette = QCheckBox("Vignette")
+        self.cb_disable_captions = QCheckBox("Disable Captions")
         
         settings_layout.addWidget(self.lbl_status, stretch=1)
         settings_layout.addStretch(0)
@@ -479,6 +481,7 @@ class AutoEditorGUI(QMainWindow):
         settings_layout.addWidget(self.cb_strict_cuts)
         settings_layout.addWidget(self.spin_gap)
         settings_layout.addWidget(self.cb_vignette)
+        settings_layout.addWidget(self.cb_disable_captions)
         center_layout.addLayout(settings_layout)
 
         self.table = QTableWidget(0, 7) 
@@ -572,11 +575,14 @@ class AutoEditorGUI(QMainWindow):
         self.btn_insp_edit_media.clicked.connect(self.open_media_editor)
         self.btn_insp_caption = QPushButton("📝 Edit Caption (C)")
         self.btn_insp_caption.clicked.connect(self.open_caption_preview)
+        self.cb_insp_show_caption = QCheckBox("Show Caption")
+        self.cb_insp_show_caption.stateChanged.connect(self.on_inspector_change)
         self.btn_insp_clear = QPushButton("🗑️ Make Blank")
         self.btn_insp_clear.clicked.connect(self.make_cell_blank)
         
         insp_layout.addWidget(self.btn_insp_edit_media)
         insp_layout.addWidget(self.btn_insp_caption)
+        insp_layout.addWidget(self.cb_insp_show_caption)
         insp_layout.addWidget(self.btn_insp_clear)
         insp_layout.addStretch()
         
@@ -604,6 +610,7 @@ class AutoEditorGUI(QMainWindow):
         self.combo_whisper_model.currentTextChanged.connect(self.on_setting_changed)
         self.cb_strict_cuts.stateChanged.connect(self.on_setting_changed)
         self.cb_vignette.stateChanged.connect(self.on_setting_changed)
+        self.cb_disable_captions.stateChanged.connect(self.on_setting_changed)
         self.spin_gap.valueChanged.connect(self.on_setting_changed)
 
         self.sync_ui_to_model()
@@ -632,6 +639,7 @@ class AutoEditorGUI(QMainWindow):
         self.cb_strict_cuts.setChecked(self.project.strict_cuts)
         self.spin_gap.setValue(self.project.gap_threshold)
         self.cb_vignette.setChecked(self.project.vignette)
+        self.cb_disable_captions.setChecked(self.project.disable_all_captions)
         
         self._resize_preview_window()
         if self.project.audio_path: self.btn_load_audio.setStyleSheet("color: #FF7043; border-left: 4px solid #FF7043;")
@@ -757,6 +765,7 @@ class AutoEditorGUI(QMainWindow):
         self.project.whisper_model = self.combo_whisper_model.currentText()
         self.project.strict_cuts = self.cb_strict_cuts.isChecked()
         self.project.vignette = self.cb_vignette.isChecked()
+        self.project.disable_all_captions = self.cb_disable_captions.isChecked()
         self.project.gap_threshold = self.spin_gap.value()
         self.project.is_dirty = True
         self._resize_preview_window()
@@ -846,6 +855,7 @@ class AutoEditorGUI(QMainWindow):
         self.combo_insp_type.setCurrentText(clip.media_type)
         self.combo_insp_anim.setCurrentText(clip.animation)
         self.combo_insp_trans.setCurrentText(clip.transition)
+        self.cb_insp_show_caption.setChecked(clip.show_caption)
         
         if clip.media_type == "Video":
             self.btn_insp_edit_media.setText("✂️ Trim Video (T)")
@@ -897,6 +907,7 @@ class AutoEditorGUI(QMainWindow):
 
         clip.animation = self.combo_insp_anim.currentText()
         clip.transition = self.combo_insp_trans.currentText()
+        clip.show_caption = self.cb_insp_show_caption.isChecked()
         self.project.is_dirty = True
         
         # Fast UI Update
@@ -1288,7 +1299,8 @@ class AutoEditorGUI(QMainWindow):
                 "start_time": st, "end_time": et, "animation": c.animation, "transition": c.transition, 
                 "trim_start": c.trim_start, "trim_end": c.trim_end, "caption_x": c.caption_x, 
                 "caption_y": c.caption_y if c.caption_y is not None else (0.74 if is_vert else 0.90), 
-                "caption_scale": c.caption_scale, "caption_rot": c.caption_rot, "words": c.words
+                "caption_scale": c.caption_scale, "caption_rot": c.caption_rot, "words": c.words,
+                "show_caption": c.show_caption
             })
             safe_last_end = et
 
@@ -1300,7 +1312,8 @@ class AutoEditorGUI(QMainWindow):
         self.render_worker = RenderWorker(
             render_data, self.project.audio_path, output_file, 
             self.project.aspect_ratio, self.project.strict_cuts, self.project.gap_threshold, 
-            30 if "30" in self.project.fps else 60, self.project.vignette
+            30 if "30" in self.project.fps else 60, self.project.vignette,
+            disable_all_captions=self.project.disable_all_captions
         )
         
         # Connect signals
