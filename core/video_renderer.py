@@ -1,4 +1,5 @@
 import os
+import sys
 import platform
 import random
 import gc
@@ -482,8 +483,9 @@ class VideoRenderer:
             finally:
                 clip_executor.shutdown(wait=False, cancel_futures=True)
             clip_time = time.time() - wait_start
-            print(f"\n========== RENDER TIMINGS ==========")
-            print(f"1. Background Clips: {clip_time:.1f} seconds")
+            if sys.stdout and sys.stdout.isatty():
+                print(f"\n========== RENDER TIMINGS ==========")
+                print(f"1. Background Clips: {clip_time:.1f} seconds")
 
             if not ts_files:
                 raise ValueError("No valid clips found to render! Make sure your timeline has valid timings.")
@@ -545,12 +547,14 @@ class VideoRenderer:
             cap_res = create_ass_file(mapped_timeline, w, h, captions_ass, disable_all_captions=disable_all_captions)
             
             cap_time = time.time() - cap_start
-            print(f"2. Captions Engine:  {cap_time:.1f} seconds")
+            if sys.stdout and sys.stdout.isatty():
+                print(f"2. Captions Engine:  {cap_time:.1f} seconds")
             
             progress_callback("Merging final video layers... 95%")
             
             merge_start = time.time()
-            print("3. Final FFmpeg Merge (Applying Fade-to-Black)...")
+            if sys.stdout and sys.stdout.isatty():
+                print("3. Final FFmpeg Merge (Applying Fade-to-Black)...")
 
             # FIX: Base the fade out on the actual stitched video duration
             final_dur = total_video_dur
@@ -587,11 +591,13 @@ class VideoRenderer:
                 ], timeout=3300, cancel_event=cancel_event)
 
             merge_time = time.time() - merge_start
-            print(f"3. Final FFmpeg Merge: {merge_time:.1f} seconds")
+            if sys.stdout and sys.stdout.isatty():
+                print(f"3. Final FFmpeg Merge: {merge_time:.1f} seconds")
 
             total_time = time.time() - render_start_time
-            print(f"TOTAL RENDER TIME: {total_time:.1f} seconds")
-            print(f"====================================\n")
+            if sys.stdout and sys.stdout.isatty():
+                print(f"TOTAL RENDER TIME: {total_time:.1f} seconds")
+                print(f"====================================\n")
 
             mins = int(total_time // 60)
             secs = int(total_time % 60)

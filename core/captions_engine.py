@@ -1,6 +1,7 @@
 import os
 import subprocess
-import glob
+import os
+import sys
 import math
 from collections import deque
 import cv2
@@ -335,5 +336,6 @@ def create_ass_file(timeline_data, width, height, output_path, disable_all_capti
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("\n".join(ass_content))
         
-    print(f"Generated ultra-fast native .ass subtitle file: {output_path}")
+    if sys.stdout and sys.stdout.isatty():
+        print(f"Generated ultra-fast native .ass subtitle file: {output_path}")
     return output_path
