@@ -123,7 +123,7 @@ class VideoRenderer:
                     "-y", "-ss", str(trim_start), "-to", str(trim_end), "-i", img,
                     "-filter_complex", "[0:v]reverse[r];[0:v][r]concat=n=2:v=1[v]",
                     "-map", "[v]", "-an",
-                    "-c:v", "libx264", "-preset", "ultrafast",
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "16",
                     "-threads", "0",
                     pp_mp4
                 ], cancel_event=cancel_event)
@@ -229,17 +229,21 @@ class VideoRenderer:
         if not is_video:
             transitions.append(f"scale={w}:{h}:flags=bicubic")
 
+        # Normalize tail: consistent SAR / fps / timebase / pix_fmt before MPEGTS
+        # so concat -c copy never produces DAR distortion or timebase glitches.
+        transitions.append(f"setsar=1,fps={fps},format=yuv420p,settb=AVTB")
+
         if transitions:
             trans_str = ",".join(transitions)
             filter_graph += f"; {current_pad}{trans_str}[outv]"
         else:
             filter_graph += f"; {current_pad}null[outv]"
-        
+
         cmd = ["-y"] + input_args + [
-            "-an", 
+            "-an",
             "-filter_complex", filter_graph,
             "-map", "[outv]",
-            "-c:v", "libx264", "-preset", "ultrafast",
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "16",
             "-threads", "0",
             "-pix_fmt", "yuv420p",
             "-t", f"{dur:.3f}"
@@ -256,6 +260,18 @@ class VideoRenderer:
         if is_video and pp_mp4 and os.path.exists(pp_mp4):
             os.remove(pp_mp4)
 
+    def _sanitize_ff_filter_path(self, path):
+        """Escape a path for use inside an ffmpeg filter string (all platforms).
+        Escapes backslash, colon, and single-quote so fontsdir/ass never break."""
+        p = path.replace("\\", "/")
+        p = p.replace("'", "\\'")
+        if platform.system() == "Windows":
+            p = p.replace(":", "\\:")
+        else:
+            # Colons in POSIX paths also break filter option parsing
+            p = p.replace(":", "\\:")
+        return p
+
     def render_project(self, timeline_data, audio_path, output_path,
                        resolution, strict_cuts, gap_threshold, progress_callback, cancel_event=None, fps=60, vignette=True, disable_all_captions=False):
 
@@ -263,7 +279,7 @@ class VideoRenderer:
 
         w, h = (1920, 1080) if "16:9" in resolution else (1080, 1920)
         total = len(timeline_data)
-        
+
         if total == 0:
             raise ValueError("Timeline is empty or unsynced project. Sync it first.")
 
@@ -299,6 +315,11 @@ class VideoRenderer:
 
         # Native fast duration fetch instead of MoviePy
         audio_dur = self._get_media_duration(audio_path)
+        if audio_dur <= 0.0:
+            raise ValueError(
+                f"Voiceover audio is missing or unreadable: {audio_path}. "
+                "Cannot render without a valid audio track."
+            )
 
         tmp = tempfile.mkdtemp(prefix="veditor_")
         try:
@@ -328,7 +349,7 @@ class VideoRenderer:
                 if i < total - 1:
                     ns = None
                     for j in range(i + 1, total):
-                        if timeline_data[j]["start_time"] > 0 or timeline_data[j]["end_time"] > 0 or j == 0:
+                        if timeline_data[j]["start_time"] > 0 or timeline_data[j]["end_time"] > 0:
                             ns = timeline_data[j]["start_time"]
                             break
                     if ns is None:
@@ -447,12 +468,19 @@ class VideoRenderer:
                 )
                 clip_futures.append(future)
                 ts_files.append(tsf)
-                gc.collect()
 
             wait_start = time.time()
             progress_callback("Waiting for all background clips to finish...")
-            for f in clip_futures:
-                f.result() 
+            try:
+                for f in clip_futures:
+                    f.result()
+            except Exception:
+                # Cancel queued work; running ffmpeg procs die via cancel_event/timeout.
+                for f in clip_futures:
+                    f.cancel()
+                raise
+            finally:
+                clip_executor.shutdown(wait=False, cancel_futures=True)
             clip_time = time.time() - wait_start
             print(f"\n========== RENDER TIMINGS ==========")
             print(f"1. Background Clips: {clip_time:.1f} seconds")
@@ -529,14 +557,9 @@ class VideoRenderer:
             fade_start = max(0.0, final_dur - 0.7) # Clean 0.7s fade right at the end
 
             if cap_res and os.path.exists(cap_res):
-                # FFmpeg paths on Windows filters MUST have exactly this escaping to prevent crashes
-                if platform.system() == "Windows":
-                    ass_path = cap_res.replace('\\', '/').replace(':', '\\:')
-                    font_dir = os.path.dirname(get_font_path()).replace('\\', '/').replace(':', '\\:')
-
-                else:
-                    ass_path = cap_res
-                    font_dir = os.path.dirname(get_font_path())
+                # Escape ass/fontsdir paths for the ffmpeg filter string on all platforms
+                ass_path = self._sanitize_ff_filter_path(cap_res)
+                font_dir = self._sanitize_ff_filter_path(os.path.dirname(get_font_path()))
                 
                 ass_filter = f"ass='{ass_path}':fontsdir='{font_dir}'"
                 

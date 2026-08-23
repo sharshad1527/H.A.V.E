@@ -212,3 +212,7 @@ graphify-out/
 # Obsidian & Local Wiki ignores
 wiki/.obsidian/
 wiki/graphify-out/
+
+# H.A.V.E runtime artifacts
+jobs/
+projects/

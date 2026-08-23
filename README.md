@@ -58,6 +58,51 @@ You can launch the app via the desktop shortcut created by the installer, or man
 python main.py
 ```
 
+## **⌨️ Headless CLI (New)**
+
+Everything the GUI does is now scriptable — no Qt required:
+
+```bash
+python cli.py info my_project.csv              # project summary
+python cli.py clips list my_project.csv        # timeline table
+python cli.py clips trim my_project.csv 2 --end 12.5
+python cli.py clips move my_project.csv 3 0    # reorder
+python cli.py sync my_project.csv -m base      # Whisper sync
+python cli.py render my_project.csv -o out.mp4 # foreground render w/ progress bar
+python cli.py render my_project.csv -o out.mp4 --background   # tracked job
+python cli.py job-status <job_id>
+python cli.py shorts my_project.csv            # top segments heuristic
+```
+
+## **🔌 MCP Server (New)**
+
+Drive H.A.V.E from any MCP client (Claude Desktop, Hermes, etc.):
+
+```bash
+python mcp_server.py        # stdio transport
+# or: python cli.py mcp
+```
+
+Exposed tools: `load_project`, `get_project_state`, `list_clips`,
+`update_clip_timing`, `move_clip`, `transcribe_and_sync`,
+`generate_captions`, `start_render_job` (async, returns job_id),
+`get_job_status`, `cancel_job`, `render_project_blocking`.
+
+Example client config (Claude Desktop / Hermes `mcp add`):
+```json
+{
+  "mcpServers": {
+    "have": {
+      "command": "python",
+      "args": ["/path/to/H.A.V.E/mcp_server.py"]
+    }
+  }
+}
+```
+
+Long renders never block the MCP request — they run as background jobs with
+JSON status sidecars in `jobs/`, polled via `get_job_status`.
+
 ## **📐 Known Quirks & "Designed For"**
 
 I built this specifically for my own content style, so it has some opinionated design choices:
@@ -68,6 +113,7 @@ I built this specifically for my own content style, so it has some opinionated d
 
 ## **🗺️ Roadmap**
 
+* \[x\] Headless CLI + MCP Server: drive the entire engine programmatically (services layer, `cli.py`, `mcp_server.py`).
 * \[ \] Auto Chapter Creator: Automatically analyze the script/transcription to generate timestamped YouTube chapters for seamless video navigation.
 * \[ \] Custom Caption Styles: Allow different fonts, colors, background boxes, and dynamic entry animations beyond the current default preset.
 * \[ \] Custom Effects Creator: Build a UI to let users create and save their own custom zoom/pan/transition presets.

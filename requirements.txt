@@ -6,3 +6,7 @@ Pillow
 rapidfuzz
 opencv-python
 requests
+# Headless layer (CLI + MCP)
+typer>=0.12
+rich>=13.0
+fastmcp>=2.0
