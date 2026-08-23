@@ -216,3 +216,4 @@ wiki/graphify-out/
 # H.A.V.E runtime artifacts
 jobs/
 projects/
+tests/_fixtures/
