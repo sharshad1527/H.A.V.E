@@ -43,6 +43,35 @@ def _load(path: str):
 # ---------- project tools ----------
 
 @mcp.tool
+def create_project(path: str, audio_path: str = None,
+                   aspect_ratio: str = "16:9 (Horizontal)", fps: str = "60 FPS",
+                   whisper_model: str = "Base") -> dict:
+    """Create a brand-new project CSV. Optionally attach the voiceover audio now."""
+    p = ProjectService.create_project(_resolve(path), audio_path=audio_path,
+                                      aspect_ratio=aspect_ratio, fps=fps,
+                                      whisper_model=whisper_model)
+    return ProjectService.get_project_state(p)
+
+
+@mcp.tool
+def set_project_settings(path: str, audio_path: str = None, aspect_ratio: str = None,
+                         fps: str = None, whisper_model: str = None,
+                         strict_cuts: bool = None, gap_threshold: float = None,
+                         vignette: bool = None, disable_all_captions: bool = None) -> dict:
+    """Update global project settings — attach/replace voiceover audio,
+    aspect ratio, fps, whisper model, strict cuts, gap threshold, vignette,
+    captions on/off. Only provided fields change. Saves the project."""
+    p = _load(path)
+    state = ProjectService.set_project_settings(
+        p, audio_path=audio_path, aspect_ratio=aspect_ratio, fps=fps,
+        whisper_model=whisper_model, strict_cuts=strict_cuts,
+        gap_threshold=gap_threshold, vignette=vignette,
+        disable_all_captions=disable_all_captions)
+    ProjectService.save_project(p)
+    return state
+
+
+@mcp.tool
 def load_project(path: str) -> dict:
     """Load a H.A.V.E project CSV and return its full state."""
     return ProjectService.get_project_state(_load(path))
@@ -77,6 +106,75 @@ def move_clip(path: str, index: int, new_index: int) -> list:
     clips = ProjectService.move_clip(p, index, new_index)
     ProjectService.save_project(p)
     return clips
+
+
+@mcp.tool
+def add_clip(path: str, media_path: str, script_text: str = "",
+             media_type: str = None, position: int = None) -> dict:
+    """Add a new clip (image or video) to the timeline. Auto-detects
+    Image/Video from extension unless media_type given."""
+    p = _load(path)
+    added = ProjectService.add_clip(p, media_path, script_text,
+                                    media_type=media_type, position=position)
+    ProjectService.save_project(p)
+    return added
+
+
+@mcp.tool
+def remove_clip(path: str, index: int) -> list:
+    """Delete a clip from the timeline by index. Returns remaining clips."""
+    p = _load(path)
+    remaining = ProjectService.remove_clip(p, index)
+    ProjectService.save_project(p)
+    return remaining
+
+
+@mcp.tool
+def update_clip_media(path: str, index: int, media_path: str,
+                      media_type: str = None) -> dict:
+    """Swap the media file of an existing clip (e.g. replace an image)."""
+    p = _load(path)
+    updated = ProjectService.update_clip_media(p, index, media_path,
+                                               media_type=media_type)
+    ProjectService.save_project(p)
+    return updated
+
+
+@mcp.tool
+def update_clip_text(path: str, index: int, script_text: str) -> dict:
+    """Change a clip's script line — the text Whisper syncs against.
+    Re-sync after changing text for accurate timings."""
+    p = _load(path)
+    updated = ProjectService.update_clip_text(p, index, script_text)
+    ProjectService.save_project(p)
+    return updated
+
+
+@mcp.tool
+def set_clip_effect(path: str, index: int, animation: str = None,
+                    transition: str = None) -> dict:
+    """Set animation and/or transition for one clip. Use "Random" to let the
+    engine pick weighted-random. Animations: Zoom In, Zoom Out, Camera Pan
+    Left/Right, Pan Left/Right, Pendulum, Ken Burns. Transitions: Cut, Fade,
+    Mix, Bubble Blur, Slide Left/Right, Swipe Left/Right, Pull In, Pull Out."""
+    p = _load(path)
+    updated = ProjectService.set_clip_effect(p, index, animation, transition)
+    ProjectService.save_project(p)
+    return updated
+
+
+@mcp.tool
+def set_caption_layout(path: str, index: int, x: float = None, y: float = None,
+                       scale: float = None, rotation: float = None,
+                       show: bool = None) -> dict:
+    """Adjust caption layout for one clip: x/y position (0..1 fractions),
+    scale, rotation degrees, show/hide."""
+    p = _load(path)
+    updated = ProjectService.set_caption_layout(p, index, x=x, y=y,
+                                                scale=scale, rotation=rotation,
+                                                show=show)
+    ProjectService.save_project(p)
+    return updated
 
 
 # ---------- sync / captions ----------

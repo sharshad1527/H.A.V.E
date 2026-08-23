@@ -107,12 +107,16 @@ class SyncService:
         """
         render_data = []
         is_vert = "9:16" in (project.aspect_ratio or "")
+        # Only synced clips participate — mirrors the renderer's own skip of
+        # unmatched clips. Without this, an unsynced clip's 0.0 start_time
+        # would crush its predecessor's end time via min() below.
+        active = [(i, c) for i, c in enumerate(project.clips) if c.is_synced]
+        n = len(active)
         safe_last_end = 0.0
-        n = len(project.clips)
-        for i, c in enumerate(project.clips):
+        for pos, (i, c) in enumerate(active):
             st = max(c.start_time, safe_last_end)
-            if i < n - 1:
-                next_st = project.clips[i + 1].start_time
+            if pos < n - 1:
+                next_st = active[pos + 1][1].start_time
                 et = min(c.end_time, next_st)
             else:
                 et = c.end_time + 0.2

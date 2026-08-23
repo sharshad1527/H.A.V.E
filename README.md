@@ -129,3 +129,31 @@ I'm a big believer in using the best tools available. I used AI (LLMs) heavily d
 This project is licensed under the **GNU General Public License v3.0 (GPLv3)**.  
 You are free to use, modify, and distribute this software under the terms of the GPLv3 license. Any derivative work must also be distributed under the same license.  
 See the LICENSE file for full details.
+
+## **🎮 Full Agent Control (New)**
+
+Every knob of a project is scriptable — an agent can build and steer the entire edit:
+
+```bash
+# create a project with voiceover attached
+python cli.py create my_project.csv --audio voiceover.mp3 --aspect 9:16
+
+# global settings (audio swap, fps, model, gap threshold, captions off)
+python cli.py set my_project.csv -a new_take.mp3 --model small --gap 0.8
+
+# timeline surgery
+python cli.py clips add my_project.csv b_roll.mp4 "script line here" --at 2
+python cli.py clips remove my_project.csv 5
+python cli.py clips media my_project.csv 3 new_image.png     # swap clip's media
+python cli.py clips text my_project.csv 3 "corrected line"    # re-sync after
+python cli.py clips trim my_project.csv 3 --start 1.2 --end 9.7
+python cli.py clips move my_project.csv 0 4                   # reorder
+python cli.py clips effect my_project.csv 3 --anim "Ken Burns" --trans "Slide Left"
+python cli.py clips caption my_project.csv 3 --y 0.85 --scale 1.2 --hide
+```
+
+MCP equivalents: `create_project`, `set_project_settings`, `add_clip`,
+`remove_clip`, `update_clip_media`, `update_clip_text`, `update_clip_timing`,
+`move_clip`, `set_clip_effect`, `set_caption_layout` — so an LLM agent can
+execute the full workflow: *create → attach audio → sync with Whisper →
+verify via list_clips → tweak anything → render as background job.*

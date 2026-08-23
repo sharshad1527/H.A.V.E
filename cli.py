@@ -41,6 +41,155 @@ def _load(path: str):
 
 
 @app.command()
+def create(path: str = typer.Argument(..., help="New project CSV path"),
+           audio: str = typer.Option(None, "--audio", "-a", help="Voiceover audio file"),
+           aspect: str = typer.Option("16:9", "--aspect", help="16:9 or 9:16"),
+           fps: str = typer.Option("60", "--fps", help="30 or 60"),
+           model: str = typer.Option("Base", "--model", "-m", help="Tiny/Base/Small")):
+    """Create a new empty project CSV."""
+    ar = "9:16 (Vertical)" if "9:16" in aspect else "16:9 (Horizontal)"
+    try:
+        p = ProjectService.create_project(path, audio_path=audio,
+                                          aspect_ratio=ar, fps=f"{fps} FPS",
+                                          whisper_model=model)
+    except (FileExistsError, FileNotFoundError, ValueError) as e:
+        console.print(f"[red]Error:[/] {e}")
+        raise typer.Exit(1)
+    console.print(f"[green]Created[/] {p.filepath}")
+
+
+@app.command()
+def set(project: str = typer.Argument(..., help="Project CSV path"),
+        audio: str = typer.Option(None, "--audio", "-a", help="Attach/replace voiceover audio"),
+        aspect: str = typer.Option(None, "--aspect", help="16:9 or 9:16"),
+        fps: str = typer.Option(None, "--fps", help="30 or 60"),
+        model: str = typer.Option(None, "--model", "-m", help="Tiny/Base/Small"),
+        gap: float = typer.Option(None, "--gap", help="Gap threshold seconds"),
+        no_captions: bool = typer.Option(False, "--no-captions", help="Disable captions")):
+    """Update global project settings (audio, aspect, fps, model...)."""
+    p = _load(project)
+    ar = None
+    if aspect:
+        ar = ("9:16 (Vertical)" if "9:16" in aspect else "16:9 (Horizontal)")
+    try:
+        ProjectService.set_project_settings(
+            p, audio_path=audio, aspect_ratio=ar,
+            fps=(f"{fps} FPS" if fps else None), whisper_model=model,
+            gap_threshold=gap, disable_all_captions=True if no_captions else None)
+    except (FileNotFoundError, ValueError) as e:
+        console.print(f"[red]Error:[/] {e}")
+        raise typer.Exit(1)
+    ProjectService.save_project(p)
+    console.print(f"[green]Settings saved[/] -> {p.filepath}")
+    if audio:
+        console.print(f"  audio: {audio}")
+
+
+@clips_app.command("add")
+def clips_add(project: str = typer.Argument(..., help="Project CSV path"),
+              media: str = typer.Argument(..., help="Image/video path"),
+              text: str = typer.Argument("", help="Script line for this clip"),
+              at: int = typer.Option(None, "--at", help="Insert position (default: end)")):
+    """Add a new clip to the timeline."""
+    p = _load(project)
+    try:
+        added = ProjectService.add_clip(p, media, text, position=at)
+    except (FileNotFoundError, ValueError) as e:
+        console.print(f"[red]Error:[/] {e}")
+        raise typer.Exit(1)
+    ProjectService.save_project(p)
+    console.print(f"[green]Added[/] clip at index {added['index']}: {added['media_type']} — {os.path.basename(added['media_path'])}")
+
+
+@clips_app.command("remove")
+def clips_remove(project: str = typer.Argument(..., help="Project CSV path"),
+                 index: int = typer.Argument(..., help="Clip index to delete")):
+    """Delete a clip from the timeline."""
+    p = _load(project)
+    try:
+        ProjectService.remove_clip(p, index)
+    except IndexError as e:
+        console.print(f"[red]Error:[/] {e}")
+        raise typer.Exit(1)
+    ProjectService.save_project(p)
+    console.print(f"[green]Removed[/] clip {index} — {len(p.clips)} clips remain")
+
+
+@clips_app.command("media")
+def clips_media(project: str = typer.Argument(..., help="Project CSV path"),
+                index: int = typer.Argument(..., help="Clip index"),
+                media: str = typer.Argument(..., help="New image/video path")):
+    """Swap a clip's media file."""
+    p = _load(project)
+    try:
+        updated = ProjectService.update_clip_media(p, index, media)
+    except (IndexError, FileNotFoundError) as e:
+        console.print(f"[red]Error:[/] {e}")
+        raise typer.Exit(1)
+    ProjectService.save_project(p)
+    console.print(f"[green]Clip {index}[/] now uses {updated['media_type']}: {updated['media_path']}")
+
+
+@clips_app.command("text")
+def clips_text(project: str = typer.Argument(..., help="Project CSV path"),
+               index: int = typer.Argument(..., help="Clip index"),
+               text: str = typer.Argument(..., help="New script line")):
+    """Change a clip's script line (re-sync afterwards)."""
+    p = _load(project)
+    try:
+        ProjectService.update_clip_text(p, index, text)
+    except IndexError as e:
+        console.print(f"[red]Error:[/] {e}")
+        raise typer.Exit(1)
+    ProjectService.save_project(p)
+    console.print(f"[green]Clip {index} text set.[/] Re-run `have sync` for accurate timings.")
+
+
+@clips_app.command("effect")
+def clips_effect(project: str = typer.Argument(..., help="Project CSV path"),
+                 index: int = typer.Argument(..., help="Clip index"),
+                 animation: str = typer.Option(None, "--anim", help="Animation preset"),
+                 transition: str = typer.Option(None, "--trans", help="Transition preset")):
+    """Set animation/transition on a clip. Use --list to see valid values."""
+    p = _load(project)
+    if not animation and not transition:
+        table = Table(title="Valid presets")
+        table.add_column("Type"); table.add_column("Values")
+        table.add_row("animations", ", ".join(ProjectService.VALID_ANIMATIONS))
+        table.add_row("transitions", ", ".join(ProjectService.VALID_TRANSITIONS))
+        console.print(table)
+        return
+    try:
+        updated = ProjectService.set_clip_effect(p, index, animation, transition)
+    except (IndexError, ValueError) as e:
+        console.print(f"[red]Error:[/] {e}")
+        raise typer.Exit(1)
+    ProjectService.save_project(p)
+    console.print(f"[green]Clip {index}[/]: anim={updated['animation']} trans={updated['transition']}")
+
+
+@clips_app.command("caption")
+def clips_caption(project: str = typer.Argument(..., help="Project CSV path"),
+                  index: int = typer.Argument(..., help="Clip index"),
+                  x: float = typer.Option(None, "--x", help="0.0..1.0 width fraction"),
+                  y: float = typer.Option(None, "--y", help="0.0..1.0 height fraction"),
+                  scale: float = typer.Option(None, "--scale"),
+                  rotation: float = typer.Option(None, "--rot", help="degrees"),
+                  hide: bool = typer.Option(False, "--hide", help="Hide captions on this clip")):
+    """Adjust caption layout for one clip."""
+    p = _load(project)
+    try:
+        updated = ProjectService.set_caption_layout(
+            p, index, x=x, y=y, scale=scale, rotation=rotation,
+            show=False if hide else None)
+    except (IndexError, ValueError) as e:
+        console.print(f"[red]Error:[/] {e}")
+        raise typer.Exit(1)
+    ProjectService.save_project(p)
+    console.print(f"[green]Clip {index} caption[/]: x={updated['caption_x']} y={updated['caption_y']} scale={updated['caption_scale']} rot={updated['caption_rot']} show={updated['show_caption']}")
+
+
+@app.command()
 def info(project: str = typer.Argument(..., help="Project CSV path")):
     """Show project settings and clip summary."""
     p = _load(project)
